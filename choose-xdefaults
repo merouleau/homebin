@@ -1,0 +1,116 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# This is meant to be called from .profile in this fashion:
+#
+#   XENVIRONMENT=$HOME/.Xdefaults-$(choose-xdefaults)
+#
+# If an IP address is in `who am i`, it's a direct ssh connection from putty
+# or plink - look it up in %DPI.
+#
+# If instead of an IP address there is a DISPLAY string like "localhost:10.0",
+# use the process table to figure out if this session was started directly from
+# an ssh session.
+#
+# If so, write a new .choose-xdefaults-<m>.<n> and use the ssh session's IP
+# address for the %DPI lookup.
+#
+# If not, use the IP address in .choose-xdefaults-<m>.<n> for the %DPI lookup.
+#
+# If .choose-xdefaults-<m>.<n> doesn't exist, give up and respond with the
+# default.
+
+use strict;
+use feature 'say';
+use Proc::ProcessTable;
+
+my %DPI = (
+	'10.7.4.30' => 'stddpi', # Marc-Desktop
+	'10.7.4.40' => 'hidpi',  # Marc-Surfacebk
+	'10.7.4.41' => 'hidpi',  # Marc-Surfacebk-vpn
+);
+
+my $Default = 'unknown';
+my $ChooseDotF = '.choose-xdefaults-';
+
+my $who = `who am i`;
+unless ($who =~ /\S+\s+(\S+).*\((.*)\)/) {
+	# Likely a tty
+	LookupDPIandExit('');
+}
+
+my $pts = '/dev/' . $1;
+my $rhost = $2;
+#print STDERR "$pts $rhost $who";
+
+if ($rhost =~ /^\d+\.\d+\.\d+\.\d+$/) {
+	# Classify IP addresses of putty/plink connections directly
+	LookupDPIandExit($rhost);
+}
+
+unless ($rhost =~ /^localhost:(\d+\.\d+)$/) {
+	die "don't recognize rhost $rhost element of who output";
+}
+$ChooseDotF .= $1;
+
+# Populate %PID
+my %PID;
+my $t = new Proc::ProcessTable->table;
+foreach my $p (@$t) {
+	$PID{$p->pid} = {
+		'tty' => $p->ttydev,
+		'ppid' => $p->ppid,
+	};
+}
+
+# Find the parent tty of the current process group
+my $p = $$;
+my $tty = $PID{$p}->{tty};
+my $ptty = $tty;
+while ($tty eq $ptty) {
+	$p = $PID{$p}->{ppid};
+	$ptty = $PID{$p}->{tty};
+	die "no parent tty" unless ($p);
+}
+#print STDERR "\$ptty = $ptty\n";
+
+open(WHO,"who|");
+while (<WHO>) {
+	if (/^\S+\s+(\S+).*\((\S+)\)/) {
+		my $tty = "/dev/" . $1;
+		my $rhost = $2;
+		if ($tty eq $ptty) {
+			#print STDERR "who: $ptty $rhost\n";
+			if ($rhost =~ /^\d+\.\d+\.\d+\.\d+$/) {
+				open(my $dfh,">$ChooseDotF") or
+					die "can't write $ChooseDotF";
+				print $dfh "$rhost\n";
+				close $dfh;
+			} elsif (open(my $dfh,"$ChooseDotF")) {
+				chomp($rhost = <$dfh>);
+				close $dfh;
+			} else {
+				warn "$ChooseDotF not found\n";
+				$rhost = '';
+			}
+			LookupDPIandExit($rhost);
+		}
+	} else {
+		warn "Don't understand 'who' output format";
+	}
+}
+close WHO;
+
+LookupDPIandExit('');
+
+sub LookupDPIandExit {
+	my $rhost = shift(@_);
+
+	if ($DPI{$rhost}) {
+		#print STDERR "found \$rhost = $rhost\n";
+		say "$DPI{$rhost}";
+	} else {
+		say $Default;
+	}
+	exit;
+}

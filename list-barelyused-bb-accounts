@@ -1,0 +1,49 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+#
+# List accounts with zero posts that have not logged in for at least
+# $Days_Since_Last_Login days.
+
+use strict;
+
+my $Days_Since_Last_Login = 180;
+my $Seconds_Per_Day = 24*60*60;
+
+use DBI;
+#my $db = 'apoeinfo_bbdev1';
+my $db = 'apoeinfo_bb1';
+
+use Config::Tiny;
+my $Config = Config::Tiny->read("$ENV{HOME}/.config/dbi.conf");
+my $C = $Config->{$db};
+
+my $dbh = DBI->connect(
+	"$C->{type}:database=$db:host=$C->{host}",$C->{user},$C->{pw},
+	{AutoCommit=>1,RaiseError=>1,PrintError=>0}
+);
+
+my $sth = $dbh->prepare(qq{
+	select username,user_email,user_regdate,user_lastvisit from phpbb_users where
+		user_ip <> '' and
+		user_lastvisit <> 0 and
+		user_id not in (select distinct poster_id from phpbb_posts)
+	order by user_regdate asc
+});
+$sth->execute();
+
+my $threshold_time = time - $Days_Since_Last_Login * $Seconds_Per_Day;
+
+print qq{"username","user_email","user_regdate","user_lastvisit"\n};
+while (my $row = $sth->fetch) {
+	next unless $row->[3] < $threshold_time;
+	printf qq{"$row->[0]","$row->[1]","%4d-%02d-%02d","%4d-%02d-%02d"\n},
+		(localtime($row->[2]))[5]+1900,
+		(localtime($row->[2]))[4]+1,
+		(localtime($row->[2]))[3],
+		(localtime($row->[3]))[5]+1900,
+		(localtime($row->[3]))[4]+1,
+		(localtime($row->[3]))[3],
+	;
+}
+
+$sth->finish;

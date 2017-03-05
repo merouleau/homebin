@@ -1,0 +1,37 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# Move concerts containing untagged audio files to a parallel directory
+# tree so that Plex can index the tagged concerts without picking up a
+# bunch of Unknown Artist / Unknown Album database entries.
+
+use strict;
+use Image::ExifTool qw(:Public);
+use File::Find::Rule;
+use File::Copy::Recursive qw(dircopy dirmove);
+
+my $Concertd = "/export/Music/Concerts";
+my $Untaggedd = $Concertd . '-untagged';
+my @dirs = File::Find::Rule->extras({bydepth=>1})->directory->in($Concertd);
+
+foreach my $dir (@dirs) {
+	my $dh;
+	unless (opendir($dh,$dir)) {
+		warn "Can't opendir $dir - probably a previously moved subfolder: $!";
+		next;
+	}
+	while (my $direntry = readdir($dh)) {
+
+		# If a directory contains an untagged audio file, move it
+
+		my $fullpath = "$dir/$direntry";
+		next unless (-f $fullpath and $fullpath =~ /\.(flac|mp3)$/);
+		unless (ImageInfo($fullpath,'Artist')->{Artist}) {
+			my $todir = $dir;
+			$todir =~ s/$Concertd/$Untaggedd/;
+			dirmove($dir,$todir);
+			print "Moved $dir\n";
+			last;
+		}
+	}
+}

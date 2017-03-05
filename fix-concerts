@@ -1,0 +1,279 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# Create and/or correct tags in one or more concert folders in preparation for
+# a Plex rescan. Rename folders and/or files as possible/necessary.
+
+use strict;
+use feature 'say';
+use File::Find::Rule;
+use Path::Tiny;
+
+my $Kid3 = 'kid3-cli';
+
+my %Prefix = (
+	'avettbros' => { 'artist' => 'The Avett Brothers', },
+	'bfft' => { 'artist' => 'Bela Fleck and the Flecktones', },
+	'bh' => { 'artist' => 'Bruce Hornsby', },
+	'bhornsby' => { 'rename' => 'bh', },
+	'blitzentrapper' => { 'artist' => 'Blitzen Trapper', },
+	'7w' => { 'artist' => '7 Walkers', },
+	'bktrio' => { 'artist' => 'Bill Kreutzmann Trio', },
+	'bk3' => { 'rename' => 'bktrio', },
+	'kmb' => { rename => 'bktrio', },
+	'kbm' => { rename => 'bktrio', },
+	'kom' => { rename => 'bktrio', },
+	'bt' => { 'artist' => 'Blues Traveler', },
+	'rd' => { 'artist' => 'Ratdog', },
+	'ratdog' => { rename => 'rd', },
+	'bs' => { 'artist' => 'Buffalo Springfield', },
+	'dmb' => { 'artist' => 'Dave Matthews Band', },
+	'ec' => { 'artist' => 'Eric Clapton', },
+	'eb' => { 'artist' => 'Erykah Badu', },
+	'goe' => { 'artist' => 'Ghosts of Electricity', },
+	'gpn' => { 'artist' => 'Grace Potter and the Nocturnals', },
+	'gracepotter' => { rename => 'gpn', },
+	'gd' => { 'artist' => 'Grateful Dead', },
+	'gd&bd' => { 'rename' => 'gd', },
+	'jg' => { 'artist' => 'Jerry Garcia', },
+	'jgb' => { rename => 'jg', },
+	'jgjk' => { rename => 'jg', },
+	'jg+jk' => { rename => 'jg', },
+	'jgms' => { rename => 'jg', },
+	'lom' => { rename => 'jg', },
+	'reconstruction' => { rename => 'jg', },
+	'jcb' => { 'artist' => 'John Cowan Band', },
+	'jcbv' => { rename => 'jcb', },
+	'jcowan' => { rename => 'jcb', },
+	'lf' => { 'artist' => 'Little Feat', },
+	'lotus' => { 'artist' => 'Lotus', },
+	'marco' => { 'artist' => 'Marco Benevento', },
+	'mmw' => { 'artist' => 'Medeski Martin and Wood', },
+	'msmw' => { rename => 'mmw', },
+	'willbernard' => { 'artist' => 'Will Bernard', },
+	'abb' => { 'artist' => 'The Allman Brothers Band', },
+	'andrewbird' => { 'artist' => 'Andrew Bird', },
+	'bc' => { 'artist' => 'The Black Crowes', },
+	'bwrw' => { 'artist' => 'Bob Weir', },
+	'bw+rw' => { rename => 'bwrw', },
+	'civilwars' => { 'artist' => 'The Civil Wars', },
+	'crosbynash' => { 'artist' => 'Crosby and Nash', },
+	'csny' => { 'artist' => 'Crosby Stills Nash and Young', },
+	'dnb' => { 'artist' => 'David Nelson Band', },
+	'donna' => { 'artist' => 'Donna the Buffalo', },
+	'ebnb' => { 'artist' => 'Edie Brickell & New Bohemians', },
+	'ec' => { 'artist' => 'Eric Clapton', },
+	'davematthews' => { 'artist' => 'Dave Matthews', },
+	'ny' => { 'artist' => 'Neil Young', },
+	'franti' => { 'artist' => 'Michael Franti', },
+	'furthur' => { 'artist' => 'Furthur', },
+	'garyclarkjr' => { 'artist' => 'Gary Clark Jr.', },
+	'gbrown' => { 'artist' => 'Greg Brown', },
+	'rh' => { 'artist' => 'Robert Hunter', },
+	'hunter' => { rename => 'rh', },
+	'jackjohnson' => { 'artist' => 'Jack Johnson', },
+	'johnbell' => { 'artist' => 'John Bell', },
+	'kingfish' => { 'artist' => 'Bob Weir', },
+	'lobos' => { 'artist' => 'Los Lobos', },
+	'lylelovett' => { 'artist' => 'Lyle Lovett', },
+	'moe' => { 'artist' => 'moe.', },
+	'nbg' => { 'artist' => 'Nicki Bluhm & the Gramblers', },
+	'nrps' => { 'artist' => 'New Riders of the Purple Sage', },
+	'ny' => { 'artist' => 'Neil Young', },
+	'ptm' => { 'artist' => 'Portugal. The Man', },
+	'rads' => { 'artist' => 'The Radiators', },
+	'rice-carlini' => { 'artist' => 'Tony Rice and John Carlini', },
+	'rollins' => { 'artist' => 'Sonny Rollins', },
+	'sci' => { 'artist' => 'String Cheese Incident', },
+	'shiningrockreggae' => { 'artist' => 'Shining Rock Reggae', },
+	'toubabkrewe' => { 'artist' => 'Toubab Krewe', },
+	'ttb' => { 'artist' => 'Tedeschi Trucks Band', },
+	'alisonkrauss' => { 'artist' => 'Alison Krauss and Union Station', },
+	'blakerice' => { 'artist' => 'Norman Blake and Tony Rice', },
+	'bromberg' => { 'artist' => 'David Bromberg', },
+	'db' => { rename => 'bromberg', },
+	'elharris' => { 'artist' => 'Emmylou Harris', },
+	'gob' => { 'artist' => 'Good Old Boys', },
+	'hotrize' => { 'artist' => 'Hot Rize', },
+	'ngr' => { 'artist' => 'New Grass Revival', },
+	'normanblake' => { 'artist' => 'Norman Blake', },
+	'obrienscott' => { 'artist' => "Tim O'Brien & Darrell Scott", },
+	'psychograss' => { 'artist' => 'Psychograss', },
+	'rb' => { 'artist' => 'The Rice Brothers', },
+	'rcash' => { 'artist' => 'Rosanne Cash', },
+	'rowan' => { 'artist' => 'Peter Rowan', },
+	'rrcs' => { 'artist' => 'Rowan, Rice, Clements & Simpkins', },
+	'sin' => { 'artist' => 'Strength in Numbers', },
+	'steeldrivers' => { 'artist' => 'The Steeldrivers', },
+	'superpickers' => { 'artist' => 'The Superpickers', },
+	'tru' => { 'artist' => 'Tony Rice Unit', },
+	'mumfordandsons' => { 'artist' => 'Mumford and Sons', },
+	'oaitw' => { 'artist' => 'Old and in the Way', },
+	'papadosio' => { 'artist' => 'Papadosio', },
+	'paf' => { 'artist' => 'Phil Lesh and Friends', },
+	'pf' => { rename => 'paf', },
+	'phil' => { rename => 'paf', },
+	'ph' => { 'artist' => 'Phish', },
+	'phish' => { rename => 'ph', },
+	'sbb' => { 'artist' => 'Sam Bush Band', },
+	'sambush' => { rename => 'sbb', },
+	'scene' => { 'artist' => 'The Seldom Scene', },
+	'skim' => { 'artist' => 'Steve Kimock', },
+	'nms' => { 'artist' => 'The New Mastersounds', },
+	'um' => { 'artist' => "Umphrey's McGee", },
+	'whb' => { 'artist' => 'Warren Haynes Band', },
+	'ws' => { 'artist' => 'Wayne Shorter', },
+	'wsp' => { 'artist' => 'Widespread Panic', },
+	'wn' => { 'artist' => 'Willie Nelson', },
+	'ymsb' => { 'artist' => 'Yonder Mountain String Band', },
+);
+
+# Traverse each directory name argument and update directory names and audio
+# file tags.
+#
+# If a directory name contains a date in yyyy-mm-dd form, and the string to the
+# left of the name case-insensitively matches a key in %Prefix, rename if needed
+# to the lower case form of the canonical artist identifier.
+#
+# If the item is an MP3 or FLAC file with no Artist tag, add these tags:
+#   Artist - as per first found of parent prefix, file prefix
+#   Album - <yyyy-mm-dd> <parent name with prefix and date stripped>
+#   Track Number - alphabetical from 01
+#
+# If an audio file has an Artist tag different from what we would expect, warn.
+
+foreach (@ARGV) {
+
+	# Get all the directories, depth first
+	my $find = File::Find::Rule->extras({bydepth=>1})->directory->start($_);
+
+	while (defined(my $dir = $find->match)) {
+		my $d = path($dir)->absolute;
+		unless ($d->is_dir) {
+			warn "Skipping '$d' as it is not a directory";
+			next;
+		}
+
+		# Canonicalize directory name if applicable and set default album and
+		# artist for tagging audio files within. If the directory name can't be
+		# processed, try to extract album and artist from the parent directory.
+
+		my $n = $d->basename;
+		my $tryingParent = 1;
+		if ($n =~ /^(.+?)(\d{4}-\d\d-\d\d)(.*)$/) {
+			$tryingParent = 0;
+		} else {
+			$n = $d->parent->basename;
+		}
+		my $album = '';
+		my $artist = '';
+		if ($n =~ /^(.+?)(\d{4}-\d\d-\d\d)(.*)$/) {
+
+			# Parse the directory name
+			my $artistID = lc $1;
+			my $date = $2;
+			my $theRest = $3;
+
+			# Strip trailing punctuation from the artist abbreviation prefix
+			$artistID =~ s/[ -_.]$//;
+
+			unless (defined $Prefix{$artistID}) {
+				warn "$n: artist ID '$artistID' not found";
+				next;
+			}
+
+			# Canonicalize the artist abbreviation
+			if ($Prefix{$artistID}->{rename}) {
+				$artistID = $Prefix{$artistID}->{rename};
+			}
+
+			# Shouldn't happen - error in %Prefix above
+			unless (defined $Prefix{$artistID}->{artist}) {
+				warn "$n: artist ID '$artistID' has no name";
+				next;
+			}
+
+			# Rename directory to canonicalize if necessary
+			unless ($tryingParent) {
+				my $newn = $artistID . $date . $theRest;
+				if ($n ne $newn) {
+					$newn = $d->parent->child($newn)->stringify;
+					say "Renaming $d to " . $newn;
+					$d->move($newn);
+					$d = path($newn);
+				}
+			}
+
+			# Set artist and album for tagging
+			$artist = $Prefix{$artistID}->{artist};
+			$theRest =~ s/^[-_ .]+//; # remove leading punctuation
+			$theRest =~ s/^\s*/ /; # prepend a single space
+			$album = $date . $theRest;
+		}
+
+		# Skip folders that don't contain audio files
+		my $foundFile = 0;
+		foreach my $f ($d->children(qr/\.(flac|mp3)$/)) {
+			if ($f->is_file) {
+				$foundFile = 1;
+				last;
+			}
+		}
+		next unless ($foundFile);
+
+		# Process the audio files
+
+		# First, get key tags to see if updates are even necessary
+		open(my $kfh,qq{$Kid3 -c "select all" -c get } .
+			'"' . $d->stringify . '"|') or die "Can't run $Kid3 on $d";
+
+		my $taggedArtist; my $taggedAlbum; my $taggedTracks;
+		while (my $tag = <$kfh>) {
+			chomp($tag);
+			if ($tag =~ /Artist\s+(\S.*)/) {
+				$taggedArtist = $1;
+			} elsif ($tag =~ /Album\s+(\S.*)/) {
+				$taggedAlbum = $1;
+			} elsif ($tag =~ /Track Number\s+(\S.*)/) {
+				$taggedTracks = $1;
+			}
+		}
+		close($kfh);
+
+		say $d->basename . ": default $artist|$album; found " . 
+			($taggedArtist ? $taggedArtist : "n/a") . '|' .
+			($taggedAlbum ? $taggedAlbum : "n/a") . '|' .
+			($taggedTracks ? $taggedTracks : "n/a")
+		;
+
+		# If artist, album, and tracks are already tagged, and the tagged artist
+		# agrees with the inferred artist, don't update.
+		next if (
+			($taggedArtist and !$artist || $taggedArtist eq $artist) and
+			$taggedAlbum and $taggedTracks
+		);
+
+		# Prefer $artist for standardization
+		if ($taggedArtist && $artist && $taggedArtist ne $artist) {
+			warn "Overwriting artist '$taggedArtist' with '$artist' in $d";
+		} elsif ($taggedArtist) {
+			# Can only get here if $artist is undef
+			$artist = $taggedArtist;
+		} elsif (!$artist) {
+			warn "Could not invent artist/album for $d audio files";
+			next;
+		}
+
+		# Prefer $taggedAlbum for detail and descriptiveness
+		$album = $taggedAlbum ? $taggedAlbum : $album;
+
+		# Update tags
+		my $cmd = qq{$Kid3 -c "select all" -c "set artist \\"$artist\\"" } .
+			qq{-c "set album \\"$album\\"" } .
+			($taggedTracks ? '' : '-c numbertracks ') .
+			'"' . $d->stringify . '"'
+		;
+		say "$cmd";
+		system $cmd;
+	}
+}

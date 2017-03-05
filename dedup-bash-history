@@ -1,0 +1,64 @@
+#!/usr/bin/perl -w
+#
+# vim: set ts=4:
+#
+# Keep only the most recent instance of each command. Preserve timestamps.
+#
+# Timestamps as established via HISTTIMEFORMAT="%s " are used (and required!)
+# as delimiters to allow us to avoid garbling multiline commands without
+# parsing them as bash does.
+
+use strict;
+
+my $histf = $ENV{HISTFILE};
+
+# Develop / test / debug
+# $histf = "/home/marc/testhist";
+
+# Global hashes
+my %order; # numbers to maintain order in which to print command
+my %timestamp; # timestamp for each command
+my %cmd; # command to print for a given order entry
+
+my $timestamp;
+my $cmd;
+my $order = 0;
+
+# Read and deduplicate the history file entries
+open(HF,$histf) or die "Can't open \$ENV{HISTFILE}=$histf for reading";
+while (<HF>) {
+	if (/^#\d{10,}$/) {
+		process_cmd(); # Use prior timestamp and command
+		$timestamp = $_;
+	} else  {
+		unless ($timestamp) {
+			chomp;
+			print STDERR "Error in this line: \"$_\"\n";
+			die "This script requires history file timestamps";
+		}
+		$cmd .= $_;
+	}
+}
+process_cmd();
+close HF;
+
+# Output the deduplicated entries
+open(HFT,">$histf.$$") or die "Can't open $histf.$$ for writing";
+for $order (sort keys %cmd) {
+	print HFT $timestamp{$cmd{$order}},$cmd{$order};
+}
+close HFT;
+unlink $histf or die "Can't unlink $histf";
+rename ("$histf.$$",$histf) or die "Can't rename $histf.$$ to $histf";
+
+sub process_cmd {
+	return unless $cmd; # $cmd is empty when we read the first timestamp
+	if ($order{$cmd}) {
+		# Command is a dup. Change the order in which it will be output.
+		delete $cmd{$order{$cmd}};
+	}
+	$order{$cmd} = $order;
+	$timestamp{$cmd} = $timestamp;
+	$cmd{$order++} = $cmd;
+	$cmd = '';
+}

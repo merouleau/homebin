@@ -1,0 +1,24 @@
+#!/usr/bin/perl -w
+#
+# vim: set ts=4:
+#
+# Filter to delete a list of orphaned phpBB files along with their thumbnails.
+
+use strict;
+
+my $filesd = '/home/marc/files';
+
+while (<>) {
+	chomp;
+	if (-f "$filesd/$_") {
+		unlink "$filesd/$_" or die "unlink $filesd/$_ failed";
+		print "deleted $filesd/$_\n";
+	} else {
+		print STDERR "$filesd/$_ not found";
+	}
+
+	if (-f "$filesd/thumb_$_") {
+		unlink "$filesd/thumb_$_" or die "unlink $filesd/thumb_$_ failed";
+		print "deleted $filesd/thumb_$_\n";
+	}
+}

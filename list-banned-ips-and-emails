@@ -1,0 +1,31 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+#
+# List banned IP and email addresses.
+
+use strict;
+
+use DBI;
+#my $db = 'apoeinfo_bbdev1';
+my $db = 'apoeinfo_bb1';
+
+use Config::Tiny;
+my $Config = Config::Tiny->read("$ENV{HOME}/.config/dbi.conf");
+my $C = $Config->{$db};
+
+my $dbh = DBI->connect(
+	"$C->{type}:database=$db:host=$C->{host}",$C->{user},$C->{pw},
+	{AutoCommit=>1,RaiseError=>1,PrintError=>0}
+);
+
+my $sth = $dbh->prepare(qq{
+	select ban_ip,ban_email from phpbb_banlist where ban_userid = 0
+});
+$sth->execute();
+
+print qq{"ban_ip","ban_email"\n};
+while (my $row = $sth->fetch) {
+	print qq{"$row->[0]","$row->[1]"\n};
+}
+
+$sth->finish;

@@ -1,0 +1,19 @@
+#!/usr/bin/perl -w
+#
+# vim: set ts=4:
+#
+# Filter to convert a bash command history file in my personal archival format
+# to the standard format with timestamps. The archival format is established in
+# .bashrc with this setting:
+#
+# PROMPT_COMMAND='echo $$ $USER "$(history 1)" >> ~/.bash_history_eternal'
+
+use strict;
+
+while (<>) {
+	if (/^\d+ +\S+ +\d+ +(\d{10,}) (.*)/) {
+		print "#$1\n$2\n";
+	} else {
+		print;
+	}
+}

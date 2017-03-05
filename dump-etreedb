@@ -1,0 +1,41 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# Dump the etreedb record for one or more concerts.
+
+use strict;
+use feature 'say';
+use Path::Tiny;
+use LWP::UserAgent;
+use IO::Socket::SSL;
+use open qw(:std :utf8);
+use JSON;
+use Data::Dumper::Simple;
+
+my $EtreeDBSource = 'https://api.etreedb.org/source/';
+
+foreach (@ARGV) {
+	my $d = path($_)->absolute;
+	unless ($d->is_dir) {
+		warn "Skipping '$d' as it is not a directory";
+		next;
+	}
+	my $source = $d->basename;
+	unless ($source =~ /\.(\d+)\./) {
+		warn "Skipping $source as the shnid is not obvious from the name";
+		next;
+	}
+	my $shnid = $1;
+	say "$shnid $source";
+
+	#$IO::Socket::SSL::DEBUG = 3;
+	my $ua = LWP::UserAgent->new(agent=>'Mozilla/5.0',ssl_opts=>{verify_hostname=>0});
+	my $req = HTTP::Request->new(GET=>$EtreeDBSource . $shnid);
+	$req->header('Accept'=>'application/json');
+	my $res = $ua->request($req);
+	die $EtreeDBSource . $shnid . ": " . $res->status_line unless $res->is_success;
+	#say $res->decoded_content;
+	my $shn = decode_json($res->decoded_content);
+
+	say Dumper($shn);
+}

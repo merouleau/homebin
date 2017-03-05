@@ -1,0 +1,26 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+use strict;
+
+use DBI;
+my $db = 'apoeinfo_bbdev1';
+
+use Config::Tiny;
+my $Config = Config::Tiny->read("$ENV{HOME}/.config/dbi.conf");
+my $C = $Config->{$db};
+
+my $dbh = DBI->connect(
+	"$C->{type}:database=$db:host=$C->{host}",$C->{user},$C->{pw},
+	{AutoCommit=>1,RaiseError=>1,PrintError=>0}
+);
+
+print "2+2=",$dbh->selectrow_array("SELECT 2+2"),"\n";
+
+my $sth = $dbh->prepare(qq{
+	select count(*) from phpbb_users;
+});
+$sth->execute;
+my $row = $sth->fetch;
+print "user count = $row->[0]\n";
+$sth->finish;

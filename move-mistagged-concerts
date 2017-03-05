@@ -1,0 +1,27 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# Move one or more folders to the mistagged concert tree so that we can help
+# Plex forget the badly tagged concert(s).
+
+use strict;
+use Path::Tiny;
+
+my $Concertd = path("/export/Music/Concerts");
+my $Mistaggedd = path($Concertd . '-mistagged');
+
+foreach (@ARGV) {
+	my $fromd = path($_)->absolute;
+	unless ($fromd =~ /^$Concertd/) {
+		warn "Skipping '$fromd' as it is not in $Concertd";
+		next;
+	}
+	unless ($fromd->is_dir) {
+		warn "Skipping '$fromd' as it is not a directory";
+		next;
+	}
+	my $tod = $fromd->relative($Concertd)->absolute($Mistaggedd);
+	$tod->mkpath;
+	$fromd->move($tod) or die "Can't move $fromd to $tod";
+	print "Moved $fromd to $tod \n";
+}

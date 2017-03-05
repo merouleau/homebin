@@ -1,0 +1,32 @@
+#!/usr/bin/perl -w
+# vim: set ts=4:
+
+# Move one or more folders from the untagged and/or mistagged concert trees back
+# to the main concert tree in preparation for a Plex rescan.
+
+use strict;
+use feature 'say';
+use Path::Tiny;
+
+my $Concertd = path("/export/Music/Concerts");
+my $Untaggedd = path($Concertd . '-untagged');
+my $Mistaggedd = path($Concertd . '-mistagged');
+
+foreach (@ARGV) {
+	my $fromd = path($_)->absolute;
+	my $rootd =
+		$fromd =~ /^$Untaggedd/ ? $Untaggedd :
+		$fromd =~ /$Mistaggedd/ ? $Mistaggedd : '';
+	unless ($rootd) {
+		warn "Skipping '$fromd' as it is not in a valid location";
+		next;
+	}
+	unless ($fromd->is_dir) {
+		warn "Skipping '$fromd' as it is not a directory";
+		next;
+	}
+	my $tod = $fromd->relative($rootd)->absolute($Concertd);
+	$tod->parent->mkpath;
+	$fromd->move($tod) or die "Can't move $fromd to $tod";
+	print "Moved $fromd to $tod \n";
+}
